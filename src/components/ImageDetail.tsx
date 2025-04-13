@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowDown, X } from 'lucide-react';
-import { mockImages } from '../data/images';
+import images from '../data/images.json';
 
-type ImageStyle = 'original' | 'sticker' | 'sticker-white';
+type ImageStyle = 'transparent' | 'outlined';
 
 export function ImageDetail() {
   const { slug } = useParams();
   const navigate = useNavigate();
-  const [selectedStyle, setSelectedStyle] = useState<ImageStyle>('original');
+  const [selectedStyle, setSelectedStyle] = useState<ImageStyle>('transparent');
+  const [imageLoaded, setImageLoaded] = useState(false);
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -17,9 +18,7 @@ export function ImageDetail() {
     };
   }, []);
 
-  const image = mockImages.find(
-    img => img.caption.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') === slug
-  );
+  const image = images.find(img => img.slug === slug);
 
   if (!image) {
     navigate('/');
@@ -28,12 +27,10 @@ export function ImageDetail() {
 
   const getImageUrl = (style: ImageStyle) => {
     switch (style) {
-      case 'sticker':
-        return image.sticker_url;
-      case 'sticker-white':
+      case 'outlined':
         return image.sticker_url;
       default:
-        return image.original_url;
+        return image.png_url;
     }
   };
 
@@ -46,7 +43,7 @@ export function ImageDetail() {
       const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = blobUrl;
-      link.download = `${image.caption}-${selectedStyle}.${url.split('.').pop()}`;
+      link.download = `${image.caption}-${selectedStyle}.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -55,6 +52,23 @@ export function ImageDetail() {
       console.error('Download failed:', error);
     }
   };
+
+  const handleImageLoad = () => {
+    console.log(`Image loaded: ${selectedStyle}`);
+    setImageLoaded(true);
+  };
+
+  const handleImageError = () => {
+    console.error(`Error loading image: ${getImageUrl(selectedStyle)}`);
+  };
+
+  // 重置图片加载状态当样式变化时
+  useEffect(() => {
+    setImageLoaded(false);
+  }, [selectedStyle]);
+
+  const currentImageUrl = getImageUrl(selectedStyle);
+  const bgColor = 'bg-gray-900';
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-6">
@@ -68,46 +82,22 @@ export function ImageDetail() {
           <X className="h-5 w-5 text-gray-600 hover:text-gray-900 transition-colors" />
         </button>
 
-        {/* Left Side - Image Preview */}
+        {/* Image Preview - 简化的结构 */}
         <div className="w-full lg:w-2/3 bg-gradient-to-br from-gray-50 to-white">
-          <div className="relative w-full h-full overflow-hidden">
-            <div 
-              className="flex transition-transform duration-500 ease-out h-full"
-              style={{ 
-                transform: `translateX(-${
-                  selectedStyle === 'original' ? 0 : 
-                  selectedStyle === 'sticker' ? 100 : 200
-                }%)`,
-                width: '300%'
-              }}
-            >
-              {/* Original Image */}
-              <div className="w-1/3 h-full flex items-center justify-center p-8 lg:p-12">
-                <img
-                  src={image.original_url}
-                  alt={`${image.caption} - Original`}
-                  className="w-full h-full object-contain rounded-lg"
-                />
+          <div className={`relative w-full h-full flex items-center justify-center p-8 lg:p-16 ${bgColor} transition-colors duration-300`}>
+            <img
+              key={currentImageUrl} // 添加key以确保React重新创建图片元素
+              src={currentImageUrl}
+              alt={`${image.caption} - ${selectedStyle === 'transparent' ? 'Transparent' : 'Outlined'}`}
+              className="w-full h-full object-contain"
+              onLoad={handleImageLoad}
+              onError={handleImageError}
+            />
+            {!imageLoaded && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
               </div>
-              
-              {/* Sticker */}
-              <div className="w-1/3 h-full flex items-center justify-center bg-gray-900 p-8 lg:p-16">
-                <img
-                  src={image.sticker_url}
-                  alt={`${image.caption} - Sticker`}
-                  className="w-full h-full object-contain"
-                />
-              </div>
-              
-              {/* Sticker with White Background */}
-              <div className="w-1/3 h-full flex items-center justify-center bg-[#FCFCFC] p-8 lg:p-16">
-                <img
-                  src={image.sticker_url}
-                  alt={`${image.caption} - White Background`}
-                  className="w-full h-full object-contain"
-                />
-              </div>
-            </div>
+            )}
           </div>
         </div>
 
@@ -136,44 +126,37 @@ export function ImageDetail() {
 
           {/* Style Selection and Download */}
           <div className="p-6 lg:p-10 space-y-6 bg-white">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <button
-                onClick={() => setSelectedStyle('original')}
+                onClick={() => setSelectedStyle('transparent')}
                 className={`px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-300 ${
-                  selectedStyle === 'original'
+                  selectedStyle === 'transparent'
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                 }`}
               >
-                Original
+                透明背景
               </button>
               <button
-                onClick={() => setSelectedStyle('sticker')}
+                onClick={() => setSelectedStyle('outlined')}
                 className={`px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-300 ${
-                  selectedStyle === 'sticker'
+                  selectedStyle === 'outlined'
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                 }`}
               >
-                Sticker
+                白色边框
               </button>
-              <button
-                onClick={() => setSelectedStyle('sticker-white')}
-                className={`px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-300 ${
-                  selectedStyle === 'sticker-white'
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                }`}
-              >
-                White BG
-              </button>
+            </div>
+            <div className="text-xs text-gray-500 mb-4">
+              当前加载图片: {currentImageUrl}
             </div>
             <button
               onClick={handleDownload}
               className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-300 shadow-sm hover:shadow"
             >
               <ArrowDown className="h-5 w-5" />
-              <span className="font-medium">Download Image</span>
+              <span className="font-medium">下载图片</span>
             </button>
           </div>
         </div>
