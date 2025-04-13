@@ -219,7 +219,7 @@ export default function ImageGrid({ searchTerm = '', selectedTags = [], onTagsCh
           <div className="flex justify-center mt-8 mb-12">
             <button
               onClick={loadMoreImages}
-              className="px-6 py-3 text-white border border-white hover:bg-white hover:text-gray-900 transition duration-300 rounded-md"
+              className="px-6 py-3 bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 transition duration-300 rounded-md font-medium shadow-sm"
             >
               {t('loadMore')}
             </button>
