@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# 图片资源目录 - 不推送到Git，应上传到Cloudflare R2
+/public/images/
