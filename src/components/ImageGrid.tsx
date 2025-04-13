@@ -1,19 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowDown, Tags } from 'lucide-react';
+import { ArrowDown, Tags, ChevronDown } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import images from '../data/images.json';
+import { useNavigate } from 'react-router-dom';
 
 interface ImageGridProps {
   searchTerm: string;
+  selectedTags?: string[];
+  onTagsChange?: (tags: string[]) => void;
 }
 
-export function ImageGrid({ searchTerm }: ImageGridProps) {
+export default function ImageGrid({ searchTerm = '', selectedTags = [], onTagsChange }: ImageGridProps) {
   const { t } = useTranslation();
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [displayedImages, setDisplayedImages] = useState<typeof images>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const imagesPerPage = 12;
+  const navigate = useNavigate();
 
   // 检查图片URL格式，确保所有URL都有/images/前缀
   const fixImageUrl = (url: string) => {
@@ -51,21 +54,23 @@ export function ImageGrid({ searchTerm }: ImageGridProps) {
       setDisplayedImages(prev => [...prev, ...newImages]);
     }
     setCurrentPage(page);
+    console.log(`当前页: ${page}, 显示图片数: ${newImages.length}`);
   };
 
   // 加载更多图片
   const loadMoreImages = () => {
-    const filteredImgs = images.filter((img) => {
-      const matchesSearch = img.caption
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase());
-      const matchesTags =
-        selectedTags.length === 0 ||
-        selectedTags.every((tag) => img.tags.includes(tag));
-      return matchesSearch && matchesTags;
-    });
+    const filteredImgs = getFilteredImages();
+    const nextPage = currentPage + 1;
+    const startIndex = (nextPage - 1) * imagesPerPage;
+    const endIndex = startIndex + imagesPerPage;
     
-    loadImages(currentPage + 1, filteredImgs);
+    const newImages = filteredImgs.slice(startIndex, endIndex);
+    
+    // 添加新加载的图片到已显示的图片列表中
+    setDisplayedImages((prev) => [...prev, ...newImages]);
+    setCurrentPage(nextPage);
+    
+    console.log(`加载更多: 页码 ${nextPage}, 新增 ${newImages.length} 张图片, 总计 ${displayedImages.length + newImages.length} 张`);
   };
 
   const handleDownload = async (url: string, e: React.MouseEvent) => {
@@ -76,7 +81,12 @@ export function ImageGrid({ searchTerm }: ImageGridProps) {
       const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = blobUrl;
-      link.download = url.split('/').pop() || 'image';
+      
+      // 找到对应的图片对象，以获取 caption
+      const imageObj = images.find(img => img.png_url === url);
+      const fileName = imageObj ? `${imageObj.caption}-transparent.png` : 'image.png';
+      
+      link.download = fileName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -95,37 +105,34 @@ export function ImageGrid({ searchTerm }: ImageGridProps) {
     // 重置为第一页
     setCurrentPage(1);
     
-    setSelectedTags((prev) =>
-      prev.includes(tag)
-        ? prev.filter((t) => t !== tag)
-        : [...prev, tag]
-    );
+    // 切换标签，使用父组件提供的回调来维持状态
+    if (onTagsChange) {
+      onTagsChange(selectedTags.includes(tag) ? [] : [tag]);
+    }
   };
 
-  // 筛选符合条件的图片
-  useEffect(() => {
-    const filteredImgs = images.filter((img) => {
+  // 获取筛选后的图片列表
+  const getFilteredImages = () => {
+    return images.filter((img) => {
       const matchesSearch = img.caption
         .toLowerCase()
         .includes(searchTerm.toLowerCase());
       const matchesTags =
         selectedTags.length === 0 ||
-        selectedTags.every((tag) => img.tags.includes(tag));
+        selectedTags.some((tag) => img.tags.includes(tag));
       return matchesSearch && matchesTags;
     });
-    
+  };
+
+  // 筛选符合条件的图片
+  useEffect(() => {
+    const filteredImgs = getFilteredImages();
     loadImages(1, filteredImgs);
+    console.log(`筛选后图片数量: ${filteredImgs.length}`);
   }, [searchTerm, selectedTags]);
 
-  const filteredImages = images.filter((img) => {
-    const matchesSearch = img.caption
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase());
-    const matchesTags =
-      selectedTags.length === 0 ||
-      selectedTags.every((tag) => img.tags.includes(tag));
-    return matchesSearch && matchesTags;
-  });
+  // 使用函数获取筛选后的图片
+  const filteredImages = getFilteredImages();
 
   const hasMoreImages = currentPage * imagesPerPage < filteredImages.length;
 
@@ -153,7 +160,7 @@ export function ImageGrid({ searchTerm }: ImageGridProps) {
           ))}
         </div>
         <div className="mt-4 text-sm text-gray-500">
-          找到 {filteredImages.length} 张符合条件的图片
+          {t('foundImages', { count: filteredImages.length })}
         </div>
       </div>
 
@@ -179,6 +186,7 @@ export function ImageGrid({ searchTerm }: ImageGridProps) {
                     target.onerror = null; // 防止无限循环
                     target.src = '/placeholder-image.png'; // 使用一个占位图像
                   }}
+                  onLoad={() => console.log(`成功加载图片: ${image.png_url}`)}
                 />
                 <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center backdrop-blur-[2px]">
                   <button 
@@ -206,14 +214,14 @@ export function ImageGrid({ searchTerm }: ImageGridProps) {
           ))}
         </div>
         
-        {/* 加载更多按钮 */}
-        {hasMoreImages && (
-          <div className="flex justify-center mt-12">
+        {/* 底部加载更多按钮 */}
+        {displayedImages.length > 0 && displayedImages.length < getFilteredImages().length && (
+          <div className="flex justify-center mt-8 mb-12">
             <button
               onClick={loadMoreImages}
-              className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+              className="px-6 py-3 text-white border border-white hover:bg-white hover:text-gray-900 transition duration-300 rounded-md"
             >
-              加载更多图片
+              {t('loadMore')}
             </button>
           </div>
         )}
@@ -221,5 +229,3 @@ export function ImageGrid({ searchTerm }: ImageGridProps) {
     </>
   );
 }
-
-export default ImageGrid;
